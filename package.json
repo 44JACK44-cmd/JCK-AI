@@ -1,0 +1,44 @@
+{
+  "name": "nexus-ai",
+  "version": "1.0.0",
+  "description": "Plataforma Multi-IA Universal para Windows y Android",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "apps/android",
+    "apps/windows"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "install:all": "npm install --workspaces",
+    "backend:dev": "cd backend && python -m uvicorn api.main:app --reload",
+    "backend:install": "cd backend && pip install -r requirements.txt",
+    "tauri:dev": "npm run tauri dev --workspace=apps/windows",
+    "android:dev": "npm run dev --workspace=apps/android"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nexus-ai/platform"
+  },
+  "keywords": [
+    "ai",
+    "multi-ai",
+    "autonomous-agent",
+    "windows",
+    "android",
+    "development-platform"
+  ],
+  "author": "NEXUS AI Team",
+  "license": "MIT"
+}

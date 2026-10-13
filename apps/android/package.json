@@ -1,0 +1,18 @@
+{
+  "name": "@nexus/android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NEXUS AI — Capacitor wrapper para Android",
+  "scripts": {
+    "sync": "cap sync android",
+    "apk": "cd android && gradlew.bat assembleDebug",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}
