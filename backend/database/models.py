@@ -146,3 +146,22 @@ class APIKey(Base):
     encrypted_key = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ScheduledTask(Base):
+    """Periodic task definitions executed by the in-process scheduler."""
+    __tablename__ = "scheduled_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(128), nullable=False)
+    objective = Column(Text, nullable=False)
+    mode = Column(String(16), default="A")  # A=single chat, B=multi-ai
+    providers = Column(JSON, default=list)
+    interval_minutes = Column(Integer, default=60, nullable=False)
+    enabled = Column(Boolean, default=True)
+    last_run_at = Column(DateTime, nullable=True)
+    last_status = Column(String(32), nullable=True)
+    last_result = Column(Text, nullable=True)
+    run_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

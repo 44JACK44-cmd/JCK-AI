@@ -1,15 +1,17 @@
 @echo off
-title NEXUS AI - Instalar VS Build Tools (C++)
+title NEXUS AI - Instalar VS Build Tools 2026 (C++)
 echo ============================================================
-echo  Instalando Visual Studio Build Tools con workload C++
-echo  Requiere: aceptar el popup de Control de Cuentas de Usuario
+echo  Instalando Visual Studio Build Tools 2026 con workload C++
+echo  NOTA: usar el paquete "Microsoft.VisualStudio.BuildTools" (2026).
+echo  El paquete 2022 (Microsoft.VisualStudio.2022.BuildTools) falla
+echo  con error 5008 (bootstrapper obsoleto frente al feed 4.10).
 echo  Duracion estimada: 10-20 minutos (descarga ~2-3 GB)
 echo ============================================================
 echo.
 
 set "LOG=%TEMP%\vsbuild-nexus.log"
 
-winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --silent ^
+winget install --id Microsoft.VisualStudio.BuildTools --exact --silent ^
   --accept-package-agreements --accept-source-agreements ^
   --override "--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended" > "%LOG%" 2>&1
 

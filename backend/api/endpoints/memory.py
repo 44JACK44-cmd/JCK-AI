@@ -99,6 +99,11 @@ async def create_memory(entry: MemoryCreate, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
+    try:
+        from services.semantics import invalidate_index
+        invalidate_index()
+    except Exception:
+        pass
     return {"id": row.id, "created_at": row.created_at.isoformat()}
 
 
@@ -109,4 +114,21 @@ async def delete_memory(memory_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Memory entry not found")
     db.delete(row)
     db.commit()
+    try:
+        from services.semantics import invalidate_index
+        invalidate_index()
+    except Exception:
+        pass
     return {"deleted": memory_id}
+
+
+@router.get("/search")
+async def semantic_search(
+    q: str,
+    top_k: int = 5,
+):
+    """Okapi BM25 semantic search over experience memory (local, free)."""
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="Empty query")
+    from services.semantics import search_memory
+    return search_memory(q, top_k=max(1, min(top_k, 20)))

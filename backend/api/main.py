@@ -48,11 +48,23 @@ async def lifespan(app: FastAPI):
     
     # Load initial data
     await load_initial_data()
-    
+
+    # Start in-process scheduler for periodic tasks (Phase 5.5)
+    try:
+        from services.scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        logger.warning(f"Scheduler not started: {e}")
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down NEXUS AI...")
+    try:
+        from services.scheduler import stop_scheduler
+        stop_scheduler()
+    except Exception:
+        pass
     # Cleanup resources here
 
 

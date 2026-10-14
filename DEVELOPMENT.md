@@ -1,6 +1,6 @@
 # Desarrollo de NEXUS AI
 
-## Estado: Fase 4 en curso — 4.1-4.3 completadas (Monaco, terminal persistente, Git); 4.5 APK Android compilado; 4.4 Tauri requiere Rust
+## Estado: Fase 5 COMPLETA (Agente autónomo, web tools, memoria semántica, scheduler) — Fases 1-5 terminadas
 
 ### Fase 1 (Fundación) — completada
 - Estructura del repositorio, FastAPI + Vite/React, adaptador DeepSeek base
@@ -72,7 +72,7 @@ python -m pytest tests -v
 | 4.1 | Editor Monaco + vista de diferencias | ✅ |
 | 4.2 | Terminal integrada con historial persistente | ✅ |
 | 4.3 | Integración Git (status, diff, commit, init) | ✅ verificado E2E |
-| 4.4 | Empaquetado Tauri (Windows) | ⚠️ scaffold + iconos listos; **falta instalar Rust (`rustup`)** |
+| 4.4 | Empaquetado Tauri (Windows) | ✅ `.msi` (2.6 MB) + `setup.exe` NSIS (1.9 MB) compilados |
 | 4.5 | APK Android (Capacitor) | ✅ `app-debug.apk` compilada (~4.2 MB) |
 
 ### Detalles
@@ -81,7 +81,10 @@ python -m pytest tests -v
 - **Terminal persistente**: `GET /api/v1/terminal/history` (tabla `ExecutionLog`, ≤200 entradas, stdout truncado a 4000 chars). `Agent.tsx` muestra historial del servidor + rechazos locales, selector de cwd (`policy.authorized_roots`), recall ↑/↓ y quick commands.
 - **Git**: `backend/api/endpoints/git.py` — `GET /projects/git/status`, `GET /projects/git/diff`, `POST /projects/git/commit`, `POST /projects/git/init`. Todo vía argv fijo sin shell + `resolve_and_check_cwd` (paths fuera de raíces → 403; paths que empiezan por `-` o contienen `..` → 400). `GitPanel` en `Projects.tsx` con stage por checkbox, diff raw y form de commit. Sin upstream → ahead/behind = 0 (no es error).
 - **Android (Capacitor 6)**: workspace `apps/android`. La UI se empaqueta desde `frontend/dist` con `VITE_BACKEND_URL` (IP LAN del PC embebida en el build) — alternativa editable: `localStorage.nexus_backend_url`. El backend debe escuchar en la LAN: `uvicorn ... --host 0.0.0.0 --port 8000`. CORS incluye orígenes WebView en `config.py cors_origins`.
-- **Tauri**: scaffold en `apps/windows/src-tauri` (`Cargo.toml`, `tauri.conf.json`, `main.rs`, iconos generados con `npx tauri icon`). El cliente detecta Tauri (`IS_TAURI` en `api.ts`) y llama a `http://127.0.0.1:8000/api/v1`. **No compilable en esta máquina: no hay `cargo`/`rustc`.** Instalar Rust con `rustup` y luego `npm run build --workspace=apps/windows`.
+- **Tauri (Windows)**: compilado con Rust 1.99 + **VS Build Tools 2026** (`Microsoft.VisualStudio.BuildTools` 18.10). Salida: `apps/windows/src-tauri/target/release/bundle/msi/NEXUS AI_1.0.0_x64_en-US.msi` y `.../nsis/NEXUS AI_1.0.0_x64-setup.exe`. El cliente detecta Tauri (`IS_TAURI` en `api.ts`) y llama a `http://127.0.0.1:8000/api/v1`.
+  - **Trampa conocida**: el paquete winget `Microsoft.VisualStudio.2022.BuildTools` falla con **error 5008** (bootstrapper 3.14 rechazado por el feed que exige ≥4.10 / VS 2026). Usar `Microsoft.VisualStudio.BuildTools` (2026). Tras instalar puede quedar un reinicio pendiente (`PendingFileRenameOperations`) — el toolchain funciona igual.
+  - **Rutas en `tauri.conf.json`**: `distDir` es relativo a `src-tauri/` (`../../../frontend/dist`), pero `beforeBuildCommand` se ejecuta con cwd = `apps/windows`, por eso `cd ../.. && npm run build --workspace=frontend` (npm exige cwd = raíz del monorepo porque el workspace se identifica por path y el `name` del frontend es `nexus-ai-frontend`).
+  - Compilar con `%USERPROFILE%\.cargo\bin` en el PATH (los shells abiertos antes de instalar Rust no lo llevan).
 
 ### Comandos nuevos
 
@@ -91,9 +94,47 @@ npm run sync --workspace=apps/android     # cap sync (copia frontend/dist)
 npm run apk --workspace=apps/android      # gradlew assembleDebug
 # APK resultante: apps/android/android/app/build/outputs/apk/debug/app-debug.apk
 
-# Windows — requiere Rust (rustup) instalado
-npm run build --workspace=apps/windows    # tauri build → instalador .msi/.nsis
+# Windows — requiere Rust + VS Build Tools 2026 (ver instalador install-buildtools.bat)
+npm run build --workspace=apps/windows    # tauri build → .msi + setup.exe (NSIS)
 
 # Backend accesible desde el móvil (misma red)
 cd backend && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+## Fase 5 — estado (2026-10-13)
+
+| # | Entrega | Estado |
+|---|---------|--------|
+| 5.1 | Búsqueda web real (DuckDuckGo HTML, sin API key) | ✅ verificado E2E |
+| 5.2 | Fetch de URLs con protección SSRF | ✅ verificado E2E (localhost/metadata bloqueados) |
+| 5.3 | Agente autónomo plan→act→observe (SSE) | ✅ verificado E2E: creó archivo real con Gemini |
+| 5.4 | Memoria semántica BM25 local | ✅ verificado E2E |
+| 5.5 | Scheduler de tareas periódicas | ✅ CRUD + tick manual |
+
+### Detalles
+
+- **Web search** (`services/web_tools.py`): POST a `html.duckduckgo.com/html/`, parseo regex sin dependencias extra, decodifica redirecciones `uddg`. Endpoint `POST /api/v1/tools/search`.
+- **Fetch SSRF-safe**: solo http/https, resuelve hostname y rechaza IPs privadas/loopback/link-local/reserved (`_is_public_host`), timeout 15s, máx 2 MB, HTML→texto. Endpoint `POST /api/v1/tools/fetch`. Verificado: `127.0.0.1` y `169.254.169.254` → 400.
+- **Agente autónomo** (`services/agent_loop.py`): el LLM responde JSON `{"thought","action","params"}`; acciones reales: `list_dir`, `read_file`, `write_file`, `terminal` (validate_command), `web_search`, `fetch_url`, `final`. Máx 8 pasos (configurable 1-16). SSE en `POST /api/v1/agent/run` con eventos `start/step/tool/observation/final/error/done`. Verificado E2E: objetivo "crea hola.txt" → write_file → final en 2 pasos, archivo real creado.
+- **Bug corregido**: el failover de Gemini ignoraba `ReadTimeout` (abortaba en vez de saltar al siguiente modelo). Ahora errores de conexión también hacen failover (`adapters/google.py`).
+- **Memoria semántica** (`services/semantics.py`): Okapi BM25 puro (sin sklearn/torch), indexa `MemoryEntry` (objective+outcome+errors), rebuild con ventana de 30s. Endpoint `GET /api/v1/memory/search?q=...`.
+- **Scheduler** (`services/scheduler.py`): tabla `scheduled_tasks`, loop asyncio en lifespan (tick 30s), ejecuta tareas vencidas (modo A o B), guarda `last_status/last_result/run_count`. CRUD en `/api/v1/scheduler/` + `POST /tick`.
+- **Frontend**: `Agent.tsx` con panel autónomo SSE en vivo (pensamiento/acción/observación/final); `Conversations.tsx` con botón 🌐 que busca en la web e inserta resultados en el mensaje; `Brain.tsx` con buscador semántico de memoria.
+- **Tests**: `tests/test_phase5.py` — 17 nuevos (SSRF, parsing HTML/DDG, BM25 ranking, extracción JSON del agente, scheduler). Suite total: **59/59 ✅**, `tsc --noEmit` ✅.
+
+### Comandos nuevos
+
+```bash
+# Web search / fetch (desde el backend corriendo)
+curl -X POST http://127.0.0.1:8000/api/v1/tools/search -H "Content-Type: application/json" -d "{\"query\":\"fastapi\"}"
+curl -X POST http://127.0.0.1:8000/api/v1/tools/fetch -H "Content-Type: application/json" -d "{\"url\":\"https://example.com\"}"
+
+# Agente autónomo (SSE)
+curl -N -X POST http://127.0.0.1:8000/api/v1/agent/run -H "Content-Type: application/json" -d "{\"objective\":\"crea hola.txt con Hola\",\"max_steps\":5}"
+
+# Memoria semántica
+curl "http://127.0.0.1:8000/api/v1/memory/search?q=gemini+rate+limit"
+
+# Scheduler
+curl -X POST http://127.0.0.1:8000/api/v1/scheduler/ -H "Content-Type: application/json" -d "{\"name\":\"ping\",\"objective\":\"Responde pong\",\"interval_minutes\":120}"
 ```

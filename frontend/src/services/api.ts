@@ -201,3 +201,62 @@ export interface GitCommitResult {
   output: string
   error: string | null
 }
+
+export interface WebSearchResult {
+  query: string
+  provider: string
+  count: number
+  results: { title: string; url: string; snippet: string }[]
+}
+
+export interface MemorySearchHit {
+  id: number
+  task_id: string | null
+  objective: string | null
+  outcome: string | null
+  evaluation: string | null
+  created_at: string | null
+  score: number
+}
+
+export interface MemorySearchResult {
+  query: string
+  count: number
+  indexed: number
+  results: MemorySearchHit[]
+}
+
+export interface AgentEvent {
+  event: 'start' | 'step' | 'tool' | 'observation' | 'final' | 'error' | 'done' | 'end'
+  task_id?: number
+  provider?: string
+  cwd?: string
+  max_steps?: number
+  step?: number
+  thought?: string
+  action?: string
+  params?: Record<string, unknown>
+  output?: string
+  answer?: string
+  detail?: string
+  status?: string
+  steps?: number
+  tools_used?: string[]
+  duration_ms?: number
+  exhausted?: boolean
+}
+
+export interface ScheduledTaskInfo {
+  id: number
+  name: string
+  objective: string
+  mode: string
+  providers: string[]
+  interval_minutes: number
+  enabled: boolean
+  last_run_at: string | null
+  last_status: string | null
+  last_result: string | null
+  run_count: number
+  created_at: string | null
+}

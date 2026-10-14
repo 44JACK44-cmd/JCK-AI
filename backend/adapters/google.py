@@ -260,6 +260,7 @@ class GoogleGeminiAdapter(AIProvider):
         chain = self._candidate_models(model)
         last_error: Optional[ProviderError] = None
         for idx, candidate_model in enumerate(chain):
+            is_last = idx == len(chain) - 1
             try:
                 response = await self.client.post(
                     f"/models/{candidate_model}:generateContent",
@@ -267,9 +268,12 @@ class GoogleGeminiAdapter(AIProvider):
                 )
             except httpx.RequestError as e:
                 detail = str(e) or type(e).__name__
-                raise ProviderError(f"Gemini connection failed: {detail}", self.provider_id)
-
-            is_last = idx == len(chain) - 1
+                last_error = ProviderError(
+                    f"Gemini connection failed on {candidate_model}: {detail}", self.provider_id
+                )
+                if not is_last:
+                    continue  # failover: try next free model
+                raise last_error
             if response.status_code == 429:
                 from services import quota
                 body = ""
@@ -405,7 +409,12 @@ class GoogleGeminiAdapter(AIProvider):
                 raise ProviderError(f"Gemini stream error: {detail}", self.provider_id, detail)
             except httpx.RequestError as e:
                 detail = str(e) or type(e).__name__
-                raise ProviderError(f"Gemini stream connection failed: {detail}", self.provider_id)
+                last_error = ProviderError(
+                    f"Gemini stream connection failed on {candidate_model}: {detail}", self.provider_id
+                )
+                if not emitted and idx < len(chain) - 1:
+                    continue  # failover to next free model
+                raise last_error
         raise last_error or ProviderError("Gemini: no free models available", self.provider_id, 503)
 
     async def test_connection(self, api_key: Optional[str] = None) -> Dict[str, Any]:

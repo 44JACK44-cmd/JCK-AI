@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Send, Plus, Sparkles, Users, Loader2, Workflow, Radio, MessageCircle, Trash2 } from 'lucide-react'
-import { api, ProviderInfo, ConversationInfo, MessageInfo, MultiAIResult, OrchestrateResult, QuotaInfo, API_BASE } from '../services/api'
+import { Send, Plus, Sparkles, Users, Loader2, Workflow, Radio, MessageCircle, Trash2, Globe } from 'lucide-react'
+import { api, ProviderInfo, ConversationInfo, MessageInfo, MultiAIResult, OrchestrateResult, QuotaInfo, API_BASE, WebSearchResult } from '../services/api'
 
 type Mode = 'A' | 'B' | 'C'
 
@@ -39,6 +39,28 @@ const ConversationsPage: React.FC = () => {
   // Mode C state
   const [orchResult, setOrchResult] = useState<OrchestrateResult | null>(null)
   const [orchRunning, setOrchRunning] = useState(false)
+
+  // Web search (Phase 5)
+  const [searchingWeb, setSearchingWeb] = useState(false)
+
+  const webSearchAndInsert = async () => {
+    const q = input.trim()
+    if (!q || searchingWeb) return
+    setSearchingWeb(true)
+    try {
+      const resp = await api.post('/tools/search', { query: q, max_results: 4 })
+      const data = resp.data as WebSearchResult
+      const formatted = data.results
+        .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
+        .join('\n\n')
+      setInput(`Resultados de búsqueda web para "${q}":\n\n${formatted}\n\n`)
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Error de búsqueda'
+      setInput(`[Búsqueda web falló: ${detail}] `)
+    } finally {
+      setSearchingWeb(false)
+    }
+  }
 
   const { data: messages } = useQuery<MessageInfo[]>({
     queryKey: ['messages', activeConv],
@@ -280,6 +302,14 @@ const ConversationsPage: React.FC = () => {
                 className="flex-1 px-3 py-2 rounded-lg border bg-transparent border-gray-300 dark:border-gray-600 text-sm"
                 disabled={streaming}
               />
+              <button
+                onClick={webSearchAndInsert}
+                disabled={!input.trim() || searchingWeb || streaming}
+                title="Buscar en la web e insertar resultados en el mensaje"
+                className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                {searchingWeb ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+              </button>
               <button
                 onClick={() => activeConv && input.trim() && (useStreaming ? sendStreaming() : sendMessage.mutate({ conversation_id: activeConv, content: input }))}
                 disabled={!activeConv || !input.trim() || streaming || sendMessage.isPending}

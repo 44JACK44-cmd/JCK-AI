@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Radio, Cpu } from 'lucide-react'
-import { api, BrainStateInfo, TaskInfo } from '../services/api'
+import { Radio, Cpu, Search, Brain as BrainIcon, Loader2 } from 'lucide-react'
+import { api, BrainStateInfo, TaskInfo, MemorySearchResult } from '../services/api'
 import { useEventStream } from '../hooks/useSocket'
 
 const statusColors: Record<string, string> = {
@@ -17,6 +17,14 @@ const statusColors: Record<string, string> = {
 const BrainPage: React.FC = () => {
   const { events, connected } = useEventStream()
   const [taskFilter, setTaskFilter] = useState<number | null>(null)
+  const [memQuery, setMemQuery] = useState('')
+  const [memSubmitted, setMemSubmitted] = useState('')
+
+  const { data: memSearch, isFetching: memLoading } = useQuery<MemorySearchResult>({
+    queryKey: ['memory-search', memSubmitted],
+    queryFn: async () => (await api.get('/memory/search', { params: { q: memSubmitted, top_k: 5 } })).data,
+    enabled: memSubmitted.length > 0,
+  })
 
   const { data: state } = useQuery<BrainStateInfo>({
     queryKey: ['brain-state'],
@@ -91,6 +99,44 @@ const BrainPage: React.FC = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── Memoria semántica (BM25 local) ── */}
+      <div className="rounded-xl border dark:border-gray-700 p-4 space-y-3 bg-white dark:bg-gray-900/40">
+        <div className="flex items-center gap-2 font-semibold">
+          <BrainIcon className="w-5 h-5 text-nexus-600" /> Memoria semántica
+          <span className="text-xs font-normal text-gray-500">BM25 local · sin APIs de pago</span>
+        </div>
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (memQuery.trim()) setMemSubmitted(memQuery.trim()) }}
+          className="flex gap-2"
+        >
+          <input
+            value={memQuery}
+            onChange={(e) => setMemQuery(e.target.value)}
+            placeholder="Busca experiencias pasadas… ej: gemini rate limit, apk android"
+            className="flex-1 px-3 py-2 rounded-lg border bg-transparent border-gray-300 dark:border-gray-600 text-sm"
+          />
+          <button type="submit" disabled={!memQuery.trim() || memLoading} className="btn-primary flex items-center gap-2 text-sm">
+            {memLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Buscar
+          </button>
+        </form>
+        {memSearch && (
+          <div className="space-y-2">
+            <div className="text-xs text-gray-500">{memSearch.count} resultados de {memSearch.indexed} experiencias indexadas</div>
+            {memSearch.results.map((hit) => (
+              <div key={hit.id} className="p-3 rounded-lg border dark:border-gray-700 text-sm">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="font-medium">{hit.objective?.slice(0, 120) || '(sin objetivo)'}</div>
+                  <span className="text-xs font-mono text-nexus-600 dark:text-nexus-400 whitespace-nowrap">score {hit.score}</span>
+                </div>
+                {hit.outcome && <div className="text-xs text-gray-500 mt-1">{hit.outcome.slice(0, 200)}</div>}
+                <div className="text-[11px] text-gray-400 mt-1">{hit.evaluation} · {hit.created_at?.slice(0, 19).replace('T', ' ')}</div>
+              </div>
+            ))}
+            {memSearch.count === 0 && <p className="text-sm text-gray-500">Sin coincidencias.</p>}
+          </div>
+        )}
       </div>
     </div>
   )

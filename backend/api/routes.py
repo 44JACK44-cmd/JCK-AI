@@ -15,6 +15,9 @@ from api.endpoints import (
     auth,
     keys,
     git,
+    tools,
+    agent,
+    scheduler,
 )
 
 # Main API router
@@ -91,4 +94,22 @@ api_router.include_router(
     keys.router,
     prefix="/keys",
     tags=["API Keys"]
+)
+
+api_router.include_router(
+    tools.router,
+    prefix="/tools",
+    tags=["Web Tools"]
+)
+
+api_router.include_router(
+    agent.router,
+    prefix="/agent",
+    tags=["Autonomous Agent"]
+)
+
+api_router.include_router(
+    scheduler.router,
+    prefix="/scheduler",
+    tags=["Task Scheduler"]
 )
